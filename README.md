@@ -6,9 +6,7 @@ A simple, clean and responsive Currency Converter web app built with pure HTML, 
 
 ## 📸 Screenshot
 
-> _Add your screenshot here after running the project_
-
-![Currency Converter Screenshot](screenshot.png)
+![Currency Converter Screenshot](CurrencyConverter.png)
 
 ---
 

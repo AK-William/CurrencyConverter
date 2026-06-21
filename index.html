@@ -1,0 +1,1556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Currency Converter</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+  <style>
+    /* ===== BASE RESET & VARIABLES ===== */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    /* CSS custom properties for light mode (default) */
+    :root {
+      --bg-page:        #f0f4f8;
+      --bg-card:        #ffffff;
+      --bg-input:       #f8fafc;
+      --bg-hover:       #f1f5f9;
+      --border:         #e2e8f0;
+      --text-primary:   #1e293b;
+      --text-secondary: #64748b;
+      --text-muted:     #94a3b8;
+      --accent:         #6366f1;
+      --accent-hover:   #4f46e5;
+      --accent-light:   #eef2ff;
+      --success:        #10b981;
+      --danger:         #ef4444;
+      --shadow:         0 1px 3px rgba(0,0,0,0.08), 0 4px 16px rgba(0,0,0,0.06);
+      --shadow-lg:      0 8px 32px rgba(0,0,0,0.10);
+      --radius:         14px;
+      --radius-sm:      8px;
+      --transition:     0.2s ease;
+    }
+
+    /* Dark mode overrides — applied when <html> has class "dark" */
+    html.dark {
+      --bg-page:        #0f172a;
+      --bg-card:        #1e293b;
+      --bg-input:       #0f172a;
+      --bg-hover:       #334155;
+      --border:         #334155;
+      --text-primary:   #f1f5f9;
+      --text-secondary: #94a3b8;
+      --text-muted:     #64748b;
+      --accent:         #818cf8;
+      --accent-hover:   #6366f1;
+      --accent-light:   #1e1b4b;
+      --shadow:         0 1px 3px rgba(0,0,0,0.3), 0 4px 16px rgba(0,0,0,0.2);
+      --shadow-lg:      0 8px 32px rgba(0,0,0,0.4);
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg-page);
+      color: var(--text-primary);
+      min-height: 100vh;
+      padding: 24px 16px 48px;
+      transition: background var(--transition), color var(--transition);
+    }
+
+    /* ===== LAYOUT ===== */
+    .page-wrapper {
+      max-width: 760px;
+      margin: 0 auto;
+    }
+
+    /* ===== HEADER ===== */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 28px;
+    }
+
+    .header-title {
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+    }
+
+    .header-title span {
+      color: var(--accent);
+    }
+
+    /* Dark / light toggle button */
+    .theme-toggle {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 99px;
+      padding: 6px 14px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all var(--transition);
+    }
+
+    .theme-toggle:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    /* ===== CARD ===== */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 24px;
+      margin-bottom: 20px;
+      transition: background var(--transition), border-color var(--transition);
+    }
+
+    .card-title {
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+    }
+
+    /* ===== CONVERTER CARD ===== */
+    .converter-grid {
+      display: grid;
+      /* On desktop: [from-dropdown] [amount] [swap] [to-dropdown] */
+      grid-template-columns: 1fr 1fr auto 1fr;
+      gap: 12px;
+      align-items: end;
+      margin-bottom: 20px;
+    }
+
+    @media (max-width: 600px) {
+      /* Stack vertically on mobile */
+      .converter-grid {
+        grid-template-columns: 1fr auto 1fr;
+        grid-template-rows: auto auto;
+      }
+      .amount-group {
+        grid-column: 1 / -1; /* full width on mobile */
+        order: -1;
+      }
+    }
+
+    .field-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .field-label {
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    /* Custom dropdown wrapper — contains the hidden <select> and a styled display */
+    .dropdown-wrapper {
+      position: relative;
+    }
+
+    /* The visible styled box that replaces the ugly default select */
+    .dropdown-display {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      background: var(--bg-input);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: border-color var(--transition);
+      user-select: none;
+      min-width: 120px;
+    }
+
+    .dropdown-display:hover,
+    .dropdown-display.open {
+      border-color: var(--accent);
+    }
+
+    .dropdown-flag {
+      font-size: 1.3rem;
+      line-height: 1;
+    }
+
+    .dropdown-code {
+      font-weight: 700;
+      font-size: 0.95rem;
+      flex: 1;
+    }
+
+    .dropdown-arrow {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      transition: transform var(--transition);
+    }
+
+    .dropdown-display.open .dropdown-arrow {
+      transform: rotate(180deg);
+    }
+
+    /* The floating dropdown panel */
+    .dropdown-panel {
+      display: none;
+      position: absolute;
+      top: calc(100% + 6px);
+      left: 0;
+      right: 0;
+      min-width: 220px;
+      background: var(--bg-card);
+      border: 1.5px solid var(--accent);
+      border-radius: var(--radius-sm);
+      box-shadow: var(--shadow-lg);
+      z-index: 100;
+      overflow: hidden;
+    }
+
+    .dropdown-panel.open {
+      display: block;
+    }
+
+    .dropdown-search {
+      width: 100%;
+      padding: 10px 12px;
+      border: none;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-input);
+      color: var(--text-primary);
+      font-size: 0.88rem;
+      outline: none;
+    }
+
+    .dropdown-list {
+      max-height: 220px;
+      overflow-y: auto;
+    }
+
+    .dropdown-option {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 12px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: background var(--transition);
+    }
+
+    .dropdown-option:hover,
+    .dropdown-option.selected {
+      background: var(--bg-hover);
+    }
+
+    .dropdown-option.selected {
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .dropdown-option-name {
+      color: var(--text-secondary);
+      font-size: 0.8rem;
+    }
+
+    /* ===== AMOUNT INPUT ===== */
+    .amount-input {
+      width: 100%;
+      padding: 10px 12px;
+      background: var(--bg-input);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text-primary);
+      font-size: 1rem;
+      font-weight: 600;
+      outline: none;
+      transition: border-color var(--transition);
+    }
+
+    .amount-input:focus {
+      border-color: var(--accent);
+    }
+
+    /* Remove browser default number input arrows */
+    .amount-input::-webkit-outer-spin-button,
+    .amount-input::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+    }
+
+    /* ===== SWAP BUTTON ===== */
+    .swap-btn {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      border: 1.5px solid var(--border);
+      background: var(--bg-card);
+      color: var(--accent);
+      font-size: 1.1rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all var(--transition);
+      flex-shrink: 0;
+      margin-bottom: 0;
+    }
+
+    .swap-btn:hover {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+      transform: rotate(180deg);
+    }
+
+    /* ===== RESULT DISPLAY ===== */
+    .result-area {
+      background: var(--accent-light);
+      border-radius: var(--radius-sm);
+      padding: 20px;
+      text-align: center;
+    }
+
+    .result-from {
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+      margin-bottom: 6px;
+    }
+
+    .result-number {
+      font-size: 2.4rem;
+      font-weight: 800;
+      color: var(--accent);
+      letter-spacing: -1px;
+      line-height: 1.1;
+      word-break: break-all;
+    }
+
+    .result-rate {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      margin-top: 6px;
+    }
+
+    .result-loading {
+      color: var(--text-muted);
+      font-size: 1rem;
+      animation: pulse 1.4s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.4; }
+    }
+
+    /* ===== FAVOURITE BUTTON ===== */
+    .fav-row {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 14px;
+    }
+
+    .fav-btn {
+      background: none;
+      border: 1.5px solid var(--border);
+      border-radius: 99px;
+      padding: 5px 14px;
+      font-size: 0.82rem;
+      cursor: pointer;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      transition: all var(--transition);
+    }
+
+    .fav-btn:hover {
+      border-color: #f59e0b;
+      color: #f59e0b;
+    }
+
+    .fav-btn.saved {
+      background: #fef3c7;
+      border-color: #f59e0b;
+      color: #92400e;
+    }
+
+    html.dark .fav-btn.saved {
+      background: #451a03;
+      color: #fbbf24;
+    }
+
+    /* ===== FAVOURITES LIST ===== */
+    .favourites-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .fav-chip {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      background: var(--accent-light);
+      border: 1px solid var(--border);
+      border-radius: 99px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--accent);
+      cursor: pointer;
+      transition: all var(--transition);
+    }
+
+    .fav-chip:hover {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+
+    .fav-chip-remove {
+      font-size: 0.75rem;
+      opacity: 0.6;
+      margin-left: 2px;
+    }
+
+    .fav-chip:hover .fav-chip-remove {
+      opacity: 1;
+    }
+
+    .empty-state {
+      color: var(--text-muted);
+      font-size: 0.88rem;
+      text-align: center;
+      padding: 12px 0;
+    }
+
+    /* ===== CHART ===== */
+    .chart-container {
+      position: relative;
+      height: 220px;
+    }
+
+    .chart-title-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .chart-pair-label {
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+
+    /* ===== HISTORY LIST ===== */
+    .history-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .history-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      font-size: 0.88rem;
+      transition: background var(--transition);
+    }
+
+    .history-item:hover {
+      background: var(--bg-hover);
+    }
+
+    .history-item-left {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .history-from {
+      font-weight: 600;
+    }
+
+    .history-to {
+      color: var(--success);
+      font-weight: 700;
+    }
+
+    .history-time {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .history-clear-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 0.8rem;
+      padding: 2px 6px;
+      border-radius: 4px;
+      transition: color var(--transition);
+    }
+
+    .history-clear-btn:hover {
+      color: var(--danger);
+    }
+
+    /* ===== CLEAR ALL BUTTON ===== */
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+
+    .clear-all-btn {
+      background: none;
+      border: none;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: color var(--transition);
+    }
+
+    .clear-all-btn:hover {
+      color: var(--danger);
+    }
+
+    /* ===== SCROLLBAR (nice thin scrollbar in dropdown) ===== */
+    .dropdown-list::-webkit-scrollbar {
+      width: 4px;
+    }
+    .dropdown-list::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .dropdown-list::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 99px;
+    }
+
+    /* ===== ERROR TOAST ===== */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: var(--danger);
+      color: #fff;
+      padding: 10px 20px;
+      border-radius: 99px;
+      font-size: 0.88rem;
+      font-weight: 500;
+      box-shadow: var(--shadow-lg);
+      transition: transform 0.3s ease;
+      z-index: 999;
+      white-space: nowrap;
+    }
+
+    .toast.show {
+      transform: translateX(-50%) translateY(0);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ===== PAGE WRAPPER ===== -->
+  <div class="page-wrapper">
+
+    <!-- Header -->
+    <div class="header">
+      <h1 class="header-title">💱 Currency <span>Converter</span></h1>
+      <button class="theme-toggle" id="themeToggle">🌙 Dark</button>
+    </div>
+
+    <!-- ===== MAIN CONVERTER CARD ===== -->
+    <div class="card">
+      <div class="card-title">Convert</div>
+
+      <div class="converter-grid">
+        <!-- FROM currency dropdown -->
+        <div class="field-group">
+          <span class="field-label">From</span>
+          <div class="dropdown-wrapper" id="fromDropdownWrapper">
+            <div class="dropdown-display" id="fromDisplay">
+              <span class="dropdown-flag" id="fromFlag">🇺🇸</span>
+              <span class="dropdown-code" id="fromCode">USD</span>
+              <span class="dropdown-arrow">▼</span>
+            </div>
+            <div class="dropdown-panel" id="fromPanel">
+              <input class="dropdown-search" type="text" placeholder="Search currency…" id="fromSearch" />
+              <div class="dropdown-list" id="fromList"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- AMOUNT input -->
+        <div class="field-group amount-group">
+          <span class="field-label">Amount</span>
+          <input class="amount-input" type="number" id="amountInput" value="1" min="0" step="any" />
+        </div>
+
+        <!-- SWAP button -->
+        <div style="display:flex;align-items:flex-end">
+          <button class="swap-btn" id="swapBtn" title="Swap currencies">⇄</button>
+        </div>
+
+        <!-- TO currency dropdown -->
+        <div class="field-group">
+          <span class="field-label">To</span>
+          <div class="dropdown-wrapper" id="toDropdownWrapper">
+            <div class="dropdown-display" id="toDisplay">
+              <span class="dropdown-flag" id="toFlag">🇪🇺</span>
+              <span class="dropdown-code" id="toCode">EUR</span>
+              <span class="dropdown-arrow">▼</span>
+            </div>
+            <div class="dropdown-panel" id="toPanel">
+              <input class="dropdown-search" type="text" placeholder="Search currency…" id="toSearch" />
+              <div class="dropdown-list" id="toList"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Result display -->
+      <div class="result-area" id="resultArea">
+        <div class="result-loading" id="resultLoading">Fetching rates…</div>
+        <div id="resultContent" style="display:none">
+          <div class="result-from" id="resultFrom"></div>
+          <div class="result-number" id="resultNumber"></div>
+          <div class="result-rate" id="resultRate"></div>
+        </div>
+      </div>
+
+      <!-- Save as favourite -->
+      <div class="fav-row">
+        <button class="fav-btn" id="favBtn">⭐ Save Pair</button>
+      </div>
+    </div>
+
+    <!-- ===== FAVOURITES CARD ===== -->
+    <div class="card">
+      <div class="card-title">⭐ Favourite Pairs</div>
+      <div class="favourites-list" id="favouritesList">
+        <div class="empty-state">No favourites saved yet.</div>
+      </div>
+    </div>
+
+    <!-- ===== CHART CARD ===== -->
+    <div class="card">
+      <div class="chart-title-row">
+        <div class="card-title" style="margin-bottom:0">📈 30-Day Trend</div>
+        <span class="chart-pair-label" id="chartPairLabel">USD → EUR</span>
+      </div>
+      <div class="chart-container">
+        <canvas id="rateChart"></canvas>
+      </div>
+    </div>
+
+    <!-- ===== HISTORY CARD ===== -->
+    <div class="card">
+      <div class="section-header">
+        <div class="card-title" style="margin-bottom:0">🕐 Recent Conversions</div>
+        <button class="clear-all-btn" id="clearHistoryBtn">Clear all</button>
+      </div>
+      <div class="history-list" id="historyList">
+        <div class="empty-state">No conversions yet.</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Error toast notification -->
+  <div class="toast" id="toast"></div>
+
+  <script>
+    // =====================================================================
+    // ===== SECTION: CURRENCY DATA =====
+    // A static list of the currencies we support. Each entry has:
+    //   code  — the ISO 4217 currency code used by the API
+    //   flag  — flag emoji for visual identification
+    //   name  — full currency name shown in search results
+    // =====================================================================
+
+    const CURRENCIES = [
+      { code: "USD", flag: "🇺🇸", name: "US Dollar" },
+      { code: "EUR", flag: "🇪🇺", name: "Euro" },
+      { code: "GBP", flag: "🇬🇧", name: "British Pound" },
+      { code: "JPY", flag: "🇯🇵", name: "Japanese Yen" },
+      { code: "SGD", flag: "🇸🇬", name: "Singapore Dollar" },
+      { code: "THB", flag: "🇹🇭", name: "Thai Baht" },
+      { code: "MYR", flag: "🇲🇾", name: "Malaysian Ringgit" },
+      // MMK (Myanmar Kyat) is not supported by the Frankfurter API — omitted intentionally
+      { code: "AUD", flag: "🇦🇺", name: "Australian Dollar" },
+      { code: "CAD", flag: "🇨🇦", name: "Canadian Dollar" },
+      { code: "CHF", flag: "🇨🇭", name: "Swiss Franc" },
+      { code: "CNY", flag: "🇨🇳", name: "Chinese Yuan" },
+      { code: "KRW", flag: "🇰🇷", name: "South Korean Won" },
+      { code: "INR", flag: "🇮🇳", name: "Indian Rupee" },
+      { code: "HKD", flag: "🇭🇰", name: "Hong Kong Dollar" },
+    ];
+
+    // Build a quick lookup map: code → currency object (e.g. "USD" → { code, flag, name })
+    const CURRENCY_MAP = {};
+    CURRENCIES.forEach(c => { CURRENCY_MAP[c.code] = c; });
+
+    // =====================================================================
+    // ===== SECTION: FALLBACK RATES =====
+    // Approximate rates relative to USD, used only when the live API cannot
+    // be reached (no internet, ad blocker, corporate firewall, etc.).
+    // These are static — update them occasionally if needed.
+    // Last updated: June 2025
+    // =====================================================================
+
+    const FALLBACK_RATES_FROM_USD = {
+      USD: 1,
+      EUR: 0.921,
+      GBP: 0.787,
+      JPY: 144.5,
+      SGD: 1.351,
+      THB: 35.8,
+      MYR: 4.47,
+      AUD: 1.543,
+      CAD: 1.362,
+      CHF: 0.897,
+      CNY: 7.248,
+      KRW: 1380,
+      INR: 83.5,
+      HKD: 7.828,
+    };
+
+    /**
+     * getFallbackRate — calculates a cross rate from the fallback USD table.
+     * e.g. EUR → JPY = (1/0.921) * 144.5
+     * @param {string} from — source currency code
+     * @param {string} to   — target currency code
+     */
+    function getFallbackRate(from, to) {
+      const fromRate = FALLBACK_RATES_FROM_USD[from];
+      const toRate   = FALLBACK_RATES_FROM_USD[to];
+      if (!fromRate || !toRate) return null;
+      // Convert: from → USD → to
+      return toRate / fromRate;
+    }
+
+    // =====================================================================
+    // ===== SECTION: APP STATE =====
+    // Central state object — all UI reads from this, never scattered globals
+    // =====================================================================
+
+    const state = {
+      fromCode: "USD",   // currently selected "from" currency code
+      toCode:   "EUR",   // currently selected "to" currency code
+      amount:   1,       // the number the user wants to convert
+      rate:     null,    // the latest exchange rate (fromCode → toCode)
+    };
+
+    // =====================================================================
+    // ===== SECTION: DOM REFERENCES =====
+    // Grab all the elements we need once at startup — cheaper than repeated
+    // document.getElementById() calls inside event handlers.
+    // =====================================================================
+
+    const themeToggleBtn   = document.getElementById("themeToggle");
+    const amountInput      = document.getElementById("amountInput");
+    const swapBtn          = document.getElementById("swapBtn");
+    const favBtn           = document.getElementById("favBtn");
+    const clearHistoryBtn  = document.getElementById("clearHistoryBtn");
+    const resultLoading    = document.getElementById("resultLoading");
+    const resultContent    = document.getElementById("resultContent");
+    const resultFrom       = document.getElementById("resultFrom");
+    const resultNumber     = document.getElementById("resultNumber");
+    const resultRate       = document.getElementById("resultRate");
+    const favouritesList   = document.getElementById("favouritesList");
+    const historyList      = document.getElementById("historyList");
+    const chartPairLabel   = document.getElementById("chartPairLabel");
+    const toastEl          = document.getElementById("toast");
+
+    // Dropdown-related elements, grouped by "from" and "to" side
+    const dropdowns = {
+      from: {
+        wrapper: document.getElementById("fromDropdownWrapper"),
+        display: document.getElementById("fromDisplay"),
+        panel:   document.getElementById("fromPanel"),
+        search:  document.getElementById("fromSearch"),
+        list:    document.getElementById("fromList"),
+        flag:    document.getElementById("fromFlag"),
+        code:    document.getElementById("fromCode"),
+      },
+      to: {
+        wrapper: document.getElementById("toDropdownWrapper"),
+        display: document.getElementById("toDisplay"),
+        panel:   document.getElementById("toPanel"),
+        search:  document.getElementById("toSearch"),
+        list:    document.getElementById("toList"),
+        flag:    document.getElementById("toFlag"),
+        code:    document.getElementById("toCode"),
+      },
+    };
+
+    // Chart.js instance — we keep a reference so we can destroy and rebuild it
+    let chartInstance = null;
+
+    // =====================================================================
+    // ===== SECTION: LOCAL STORAGE =====
+    // Helper functions for reading and writing favourites and history from
+    // the browser's localStorage so data persists between page visits.
+    // =====================================================================
+
+    /**
+     * loadFavourites — reads the saved favourite currency pairs from localStorage.
+     * Returns an array of pair strings like ["USD_EUR", "GBP_JPY"].
+     * Returns an empty array if nothing is saved yet.
+     */
+    function loadFavourites() {
+      try {
+        return JSON.parse(localStorage.getItem("cc_favourites") || "[]");
+      } catch {
+        return []; // if the data is corrupted, start fresh
+      }
+    }
+
+    /**
+     * saveFavourites — writes the favourites array back to localStorage.
+     * @param {string[]} favs — array of pair strings e.g. ["USD_EUR"]
+     */
+    function saveFavourites(favs) {
+      localStorage.setItem("cc_favourites", JSON.stringify(favs));
+    }
+
+    /**
+     * loadHistory — reads recent conversion history from localStorage.
+     * Returns an array of history item objects (newest first).
+     */
+    function loadHistory() {
+      try {
+        return JSON.parse(localStorage.getItem("cc_history") || "[]");
+      } catch {
+        return [];
+      }
+    }
+
+    /**
+     * saveHistory — writes the history array back to localStorage.
+     * @param {object[]} history — array of history items
+     */
+    function saveHistory(history) {
+      localStorage.setItem("cc_history", JSON.stringify(history));
+    }
+
+    /**
+     * addToHistory — prepends a new conversion entry to history, then saves.
+     * Keeps only the 10 most recent entries to avoid unlimited growth.
+     * @param {string} fromCode — e.g. "USD"
+     * @param {string} toCode   — e.g. "EUR"
+     * @param {number} amount   — the amount that was converted
+     * @param {number} result   — the converted result value
+     * @param {number} rate     — the exchange rate used
+     */
+    function addToHistory(fromCode, toCode, amount, result, rate) {
+      const history = loadHistory();
+      history.unshift({
+        fromCode,
+        toCode,
+        amount,
+        result,
+        rate,
+        timestamp: Date.now(), // save as Unix ms so we can format it later
+      });
+      // Keep only 10 most recent items
+      const trimmed = history.slice(0, 10);
+      saveHistory(trimmed);
+    }
+
+    // =====================================================================
+    // ===== SECTION: API CALLS =====
+    // Uses the Fawaz Ahmed Currency API, served via jsDelivr CDN.
+    // jsDelivr always sends Access-Control-Allow-Origin: * so CORS is never
+    // an issue regardless of where the page is hosted.
+    //
+    // Latest:     https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json
+    // Historical: https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@2025-01-15/v1/currencies/usd.json
+    //
+    // Response shape: { "date": "2025-06-21", "usd": { "eur": 0.921, "gbp": 0.787, … } }
+    // Note: all currency codes in the response are LOWERCASE.
+    // =====================================================================
+
+    /**
+     * fetchLatestRate — fetches the current exchange rate.
+     * Returns { rate: number, isLive: true } on success.
+     * Falls back to { rate: number, isLive: false } from the static table on failure.
+     * Returns null only if both the API and the fallback table fail.
+     * @param {string} from — source currency code (e.g. "USD")
+     * @param {string} to   — target currency code (e.g. "EUR")
+     */
+    async function fetchLatestRate(from, to) {
+      try {
+        // Currency codes must be lowercase in this API's URL and response keys
+        const fromLower = from.toLowerCase();
+        const toLower   = to.toLowerCase();
+        const url = `https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/${fromLower}.json`;
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        // data looks like: { "date": "...", "usd": { "eur": 0.921, ... } }
+        const rate = data[fromLower][toLower];
+        if (rate === undefined) throw new Error(`${to} not in response`);
+        return { rate, isLive: true };
+      } catch (err) {
+        // API unreachable — use the static fallback table instead
+        const fallback = getFallbackRate(from, to);
+        if (fallback !== null) {
+          return { rate: fallback, isLive: false };
+        }
+        showToast(`Rate unavailable: ${err.message}`);
+        return null;
+      }
+    }
+
+    /**
+     * fetchHistoricalRates — fetches ~8 evenly-spaced daily rates across a 30-day
+     * window by making parallel requests for individual dated snapshots.
+     * The jsDelivr CDN keeps one JSON file per day per currency, so we pick
+     * 8 dates rather than all 30 to keep network traffic light.
+     *
+     * Returns { "YYYY-MM-DD": rateNumber, … } or null on failure.
+     * @param {string} from      — source currency code
+     * @param {string} to        — target currency code
+     * @param {string} startDate — "YYYY-MM-DD" (30 days ago)
+     * @param {string} endDate   — "YYYY-MM-DD" (today)
+     */
+    async function fetchHistoricalRates(from, to, startDate, endDate) {
+      try {
+        const fromLower = from.toLowerCase();
+        const toLower   = to.toLowerCase();
+
+        // Build the full list of every day in the 30-day window
+        const start     = new Date(startDate);
+        const end       = new Date(endDate);
+        const totalDays = Math.round((end - start) / 86400000); // ms in one day
+
+        const dates = [];
+        for (let i = 0; i <= totalDays; i++) {
+          const d = new Date(start);
+          d.setDate(d.getDate() + i);
+          dates.push(getDateString(d));
+        }
+
+        // Fetch all dates in parallel — much faster than sequential requests
+        const results = await Promise.all(dates.map(async date => {
+          const url = `https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@${date}/v1/currencies/${fromLower}.json`;
+          const response = await fetch(url);
+          if (!response.ok) return null;
+          const data = await response.json();
+          const rate  = data[fromLower]?.[toLower];
+          return rate !== undefined ? { date, rate } : null;
+        }));
+
+        // Build the flat { date: rate } map, dropping any failed requests
+        const flatRates = {};
+        results.forEach(r => { if (r) flatRates[r.date] = r.rate; });
+        return Object.keys(flatRates).length > 0 ? flatRates : null;
+      } catch (err) {
+        return null; // chart stays blank — rate toast already covers network errors
+      }
+    }
+
+    // =====================================================================
+    // ===== SECTION: DATE HELPERS =====
+    // =====================================================================
+
+    /**
+     * getDateString — formats a Date object as "YYYY-MM-DD" (API date format).
+     * @param {Date} date
+     */
+    function getDateString(date) {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, "0"); // months are 0-indexed
+      const d = String(date.getDate()).padStart(2, "0");
+      return `${y}-${m}-${d}`;
+    }
+
+    /**
+     * get30DaysAgoString — returns "YYYY-MM-DD" for 30 calendar days ago.
+     */
+    function get30DaysAgoString() {
+      const d = new Date();
+      d.setDate(d.getDate() - 30);
+      return getDateString(d);
+    }
+
+    /**
+     * getTodayString — returns today's date as "YYYY-MM-DD".
+     */
+    function getTodayString() {
+      return getDateString(new Date());
+    }
+
+    /**
+     * formatTimestamp — converts a Unix ms timestamp to a human-friendly string.
+     * e.g. 1700000000000 → "Nov 14, 2023 · 12:53"
+     * @param {number} ts — Unix milliseconds
+     */
+    function formatTimestamp(ts) {
+      const d = new Date(ts);
+      return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+        + " · " + d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+    }
+
+    // =====================================================================
+    // ===== SECTION: UI RENDERING =====
+    // Functions that update what the user sees on screen.
+    // =====================================================================
+
+    /**
+     * renderDropdownOptions — fills a dropdown list element with currency options.
+     * Filters to only show currencies whose code or name contains the search term.
+     * @param {string} side         — "from" or "to" (which dropdown to update)
+     * @param {string} searchTerm   — text typed in the search box (can be empty)
+     */
+    function renderDropdownOptions(side, searchTerm) {
+      const listEl       = dropdowns[side].list;
+      const selectedCode = side === "from" ? state.fromCode : state.toCode;
+      const term         = searchTerm.trim().toLowerCase();
+
+      // Filter currencies based on search term
+      const filtered = CURRENCIES.filter(c =>
+        c.code.toLowerCase().includes(term) ||
+        c.name.toLowerCase().includes(term)
+      );
+
+      // Build the HTML string for all matching options
+      listEl.innerHTML = filtered.map(c => `
+        <div class="dropdown-option ${c.code === selectedCode ? "selected" : ""}"
+             data-code="${c.code}" data-side="${side}">
+          <span>${c.flag}</span>
+          <span style="font-weight:600">${c.code}</span>
+          <span class="dropdown-option-name">— ${c.name}</span>
+        </div>
+      `).join("");
+    }
+
+    /**
+     * openDropdown — shows the dropdown panel for the given side and populates it.
+     * Also closes the other dropdown so only one is open at a time.
+     * @param {string} side — "from" or "to"
+     */
+    function openDropdown(side) {
+      const otherSide = side === "from" ? "to" : "from";
+
+      // Close the other dropdown first
+      dropdowns[otherSide].display.classList.remove("open");
+      dropdowns[otherSide].panel.classList.remove("open");
+
+      // Open this dropdown and populate it
+      dropdowns[side].display.classList.add("open");
+      dropdowns[side].panel.classList.add("open");
+      dropdowns[side].search.value = "";
+      renderDropdownOptions(side, "");
+      dropdowns[side].search.focus(); // auto-focus so the user can type to search
+    }
+
+    /**
+     * closeDropdown — hides the dropdown panel for the given side.
+     * @param {string} side — "from" or "to"
+     */
+    function closeDropdown(side) {
+      dropdowns[side].display.classList.remove("open");
+      dropdowns[side].panel.classList.remove("open");
+    }
+
+    /**
+     * closeAllDropdowns — hides both dropdowns (used when clicking outside).
+     */
+    function closeAllDropdowns() {
+      closeDropdown("from");
+      closeDropdown("to");
+    }
+
+    /**
+     * selectCurrency — updates the app state and display when a currency is chosen.
+     * Triggers a fresh conversion and chart load after the selection.
+     * @param {string} side — "from" or "to"
+     * @param {string} code — the chosen currency code e.g. "EUR"
+     */
+    function selectCurrency(side, code) {
+      const currency = CURRENCY_MAP[code];
+      if (!currency) return;
+
+      // Update state
+      if (side === "from") state.fromCode = code;
+      else                 state.toCode   = code;
+
+      // Update the visual display of the chosen currency in the dropdown button
+      dropdowns[side].flag.textContent = currency.flag;
+      dropdowns[side].code.textContent = currency.code;
+
+      closeDropdown(side);
+      runConversion(); // fetch new rate and update result
+    }
+
+    /**
+     * showResult — displays the conversion result in the result area.
+     * @param {number} amount   — the original amount entered
+     * @param {number} result   — the converted value
+     * @param {number} rate     — the exchange rate
+     * @param {string} fromCode — e.g. "USD"
+     * @param {string} toCode   — e.g. "EUR"
+     */
+    function showResult(amount, result, rate, fromCode, toCode, isLive) {
+      resultLoading.style.display = "none";
+      resultContent.style.display = "block";
+
+      const fromCurr = CURRENCY_MAP[fromCode];
+      const toCurr   = CURRENCY_MAP[toCode];
+
+      // "1 🇺🇸 USD ="
+      resultFrom.textContent = `${amount} ${fromCurr.flag} ${fromCode} =`;
+
+      // Format the result number — use fewer decimals for large values (like JPY)
+      const formatted = result >= 100
+        ? result.toLocaleString("en-US", { maximumFractionDigits: 2 })
+        : result.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+
+      resultNumber.textContent = `${toCurr.flag} ${formatted} ${toCode}`;
+
+      // Show the base rate; if offline, append a notice so the user knows it's approximate
+      const liveLabel = isLive ? "" : " · ⚠️ offline estimate";
+      resultRate.textContent = `1 ${fromCode} = ${rate.toFixed(4)} ${toCode}${liveLabel}`;
+    }
+
+    /**
+     * showResultLoading — shows the "Fetching rates…" placeholder while waiting.
+     */
+    function showResultLoading() {
+      resultLoading.style.display = "block";
+      resultContent.style.display = "none";
+    }
+
+    /**
+     * renderFavourites — re-draws the list of saved favourite currency pairs.
+     * Each chip loads that pair when clicked, and shows a remove button.
+     */
+    function renderFavourites() {
+      const favs = loadFavourites();
+      if (favs.length === 0) {
+        favouritesList.innerHTML = '<div class="empty-state">No favourites saved yet.</div>';
+        return;
+      }
+
+      favouritesList.innerHTML = favs.map(pair => {
+        // pair is stored as "USD_EUR" — split to get the two codes
+        const [from, to] = pair.split("_");
+        const fromCurr = CURRENCY_MAP[from];
+        const toCurr   = CURRENCY_MAP[to];
+        if (!fromCurr || !toCurr) return ""; // skip if a currency was removed
+
+        return `
+          <div class="fav-chip" data-pair="${pair}">
+            ${fromCurr.flag} ${from} → ${toCurr.flag} ${to}
+            <span class="fav-chip-remove" data-remove="${pair}">✕</span>
+          </div>
+        `;
+      }).join("");
+    }
+
+    /**
+     * updateFavBtn — updates the "Save Pair" button to reflect whether the
+     * current currency pair is already saved as a favourite.
+     */
+    function updateFavBtn() {
+      const key  = `${state.fromCode}_${state.toCode}`;
+      const favs = loadFavourites();
+      const isSaved = favs.includes(key);
+
+      favBtn.classList.toggle("saved", isSaved);
+      favBtn.textContent = isSaved ? "⭐ Saved!" : "⭐ Save Pair";
+    }
+
+    /**
+     * renderHistory — re-draws the recent conversions list from localStorage.
+     * Shows the most recent 10 items; newest first.
+     */
+    function renderHistory() {
+      const history = loadHistory();
+      if (history.length === 0) {
+        historyList.innerHTML = '<div class="empty-state">No conversions yet.</div>';
+        return;
+      }
+
+      historyList.innerHTML = history.map((item, index) => {
+        const fromCurr = CURRENCY_MAP[item.fromCode];
+        const toCurr   = CURRENCY_MAP[item.toCode];
+
+        const amountFormatted = item.amount.toLocaleString("en-US");
+        const resultFormatted = item.result >= 100
+          ? item.result.toLocaleString("en-US", { maximumFractionDigits: 2 })
+          : item.result.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+
+        return `
+          <div class="history-item">
+            <div class="history-item-left">
+              <span class="history-from">
+                ${fromCurr ? fromCurr.flag : ""} ${amountFormatted} ${item.fromCode}
+              </span>
+              <span class="history-to">
+                → ${toCurr ? toCurr.flag : ""} ${resultFormatted} ${item.toCode}
+              </span>
+              <span class="history-time">${formatTimestamp(item.timestamp)}</span>
+            </div>
+            <button class="history-clear-btn" data-history-index="${index}" title="Remove">✕</button>
+          </div>
+        `;
+      }).join("");
+    }
+
+    /**
+     * renderChart — draws (or redraws) the 30-day rate trend line chart.
+     * Destroys the previous Chart.js instance before creating a new one so
+     * we don't end up with stacked charts on the same canvas.
+     * @param {object} ratesMap — { "YYYY-MM-DD": rateNumber } object
+     * @param {string} fromCode — e.g. "USD"
+     * @param {string} toCode   — e.g. "EUR"
+     */
+    function renderChart(ratesMap, fromCode, toCode) {
+      if (!ratesMap) return;
+
+      const labels = Object.keys(ratesMap).sort(); // dates in ascending order
+      const values = labels.map(date => ratesMap[date]);
+
+      // Update the label above the chart
+      chartPairLabel.textContent = `${fromCode} → ${toCode}`;
+
+      // Determine chart line color from CSS variable
+      const accentColor = getComputedStyle(document.documentElement)
+        .getPropertyValue("--accent").trim();
+      const accentAlpha = accentColor + "33"; // add 20% opacity for the area fill
+
+      // Destroy old chart if it exists to avoid "Canvas already in use" error
+      if (chartInstance) {
+        chartInstance.destroy();
+        chartInstance = null;
+      }
+
+      const canvas = document.getElementById("rateChart");
+      const ctx    = canvas.getContext("2d");
+
+      chartInstance = new Chart(ctx, {
+        type: "line",
+        data: {
+          labels,
+          datasets: [{
+            label: `${fromCode}/${toCode} Rate`,
+            data: values,
+            borderColor:     accentColor,
+            backgroundColor: accentAlpha,
+            borderWidth:     2,
+            pointRadius:     2,       // small dots on each data point
+            pointHoverRadius: 5,
+            fill: true,
+            tension: 0.3,            // smooth curve (0 = straight lines, 1 = very curved)
+          }],
+        },
+        options: {
+          responsive:          true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false }, // hide the chart legend — the title row serves that role
+            tooltip: {
+              callbacks: {
+                // Custom tooltip: show "1 USD = 0.9201 EUR" on hover
+                label: ctx => `1 ${fromCode} = ${ctx.parsed.y.toFixed(4)} ${toCode}`,
+              },
+            },
+          },
+          scales: {
+            x: {
+              grid:   { display: false },
+              ticks: {
+                color:      getComputedStyle(document.documentElement).getPropertyValue("--text-muted").trim(),
+                maxTicksLimit: 6, // limit the number of x-axis labels so they don't crowd
+                font: { size: 10 },
+              },
+            },
+            y: {
+              grid: { color: getComputedStyle(document.documentElement).getPropertyValue("--border").trim() },
+              ticks: {
+                color: getComputedStyle(document.documentElement).getPropertyValue("--text-muted").trim(),
+                font: { size: 10 },
+              },
+            },
+          },
+        },
+      });
+    }
+
+    // =====================================================================
+    // ===== SECTION: CONVERSION LOGIC =====
+    // =====================================================================
+
+    /**
+     * runConversion — the main function that ties everything together.
+     * Reads state, fetches the latest rate, displays the result, saves history,
+     * and triggers a chart update. Called whenever the user changes anything.
+     */
+    async function runConversion() {
+      const amount = parseFloat(amountInput.value);
+
+      // Don't convert if amount is missing or invalid
+      if (isNaN(amount) || amount <= 0) {
+        showResultLoading();
+        return;
+      }
+
+      // Same currency — no API needed, rate is always 1
+      if (state.fromCode === state.toCode) {
+        state.rate = 1;
+        showResult(amount, amount, 1, state.fromCode, state.toCode, true);
+        updateFavBtn();
+        return;
+      }
+
+      showResultLoading();
+
+      // Fetch the live exchange rate (returns { rate, isLive } or null)
+      const fetched = await fetchLatestRate(state.fromCode, state.toCode);
+      if (fetched === null) return; // both live and fallback failed
+
+      const { rate, isLive } = fetched;
+      state.rate = rate;
+      const result = amount * rate;
+
+      showResult(amount, result, rate, state.fromCode, state.toCode, isLive);
+      updateFavBtn();
+
+      // Save this conversion to history
+      addToHistory(state.fromCode, state.toCode, amount, result, rate);
+      renderHistory();
+
+      // Reload the chart for the new currency pair in the background
+      loadChart();
+    }
+
+    /**
+     * loadChart — fetches 30-day historical data and renders the chart.
+     * Runs independently of the conversion so it doesn't block the result display.
+     */
+    async function loadChart() {
+      const startDate = get30DaysAgoString();
+      const endDate   = getTodayString();
+      const ratesMap  = await fetchHistoricalRates(state.fromCode, state.toCode, startDate, endDate);
+      renderChart(ratesMap, state.fromCode, state.toCode);
+    }
+
+    // =====================================================================
+    // ===== SECTION: TOAST NOTIFICATIONS =====
+    // =====================================================================
+
+    /**
+     * showToast — shows a temporary error message at the bottom of the screen.
+     * Automatically hides after 3 seconds.
+     * @param {string} message — the text to display
+     */
+    function showToast(message) {
+      toastEl.textContent = message;
+      toastEl.classList.add("show");
+      setTimeout(() => toastEl.classList.remove("show"), 3000);
+    }
+
+    // =====================================================================
+    // ===== SECTION: THEME =====
+    // =====================================================================
+
+    /**
+     * applyTheme — switches between dark and light mode by toggling a class
+     * on the <html> element, and updates the toggle button label.
+     * @param {boolean} isDark — true = dark mode, false = light mode
+     */
+    function applyTheme(isDark) {
+      document.documentElement.classList.toggle("dark", isDark);
+      themeToggleBtn.textContent = isDark ? "☀️ Light" : "🌙 Dark";
+      localStorage.setItem("cc_theme", isDark ? "dark" : "light");
+
+      // Rebuild the chart so it picks up the new color variables
+      if (state.rate !== null) {
+        loadChart();
+      }
+    }
+
+    // =====================================================================
+    // ===== SECTION: EVENT LISTENERS =====
+    // Wire up all the interactive elements to their handler functions.
+    // =====================================================================
+
+    // Theme toggle button
+    themeToggleBtn.addEventListener("click", () => {
+      const isDark = !document.documentElement.classList.contains("dark");
+      applyTheme(isDark);
+    });
+
+    // Amount input — run conversion whenever the user types
+    amountInput.addEventListener("input", () => {
+      state.amount = parseFloat(amountInput.value) || 0;
+      runConversion();
+    });
+
+    // Swap button — flip from and to currencies then re-convert
+    swapBtn.addEventListener("click", () => {
+      // Swap the state values
+      [state.fromCode, state.toCode] = [state.toCode, state.fromCode];
+
+      // Update both dropdown displays
+      const fromCurr = CURRENCY_MAP[state.fromCode];
+      const toCurr   = CURRENCY_MAP[state.toCode];
+
+      dropdowns.from.flag.textContent = fromCurr.flag;
+      dropdowns.from.code.textContent = fromCurr.code;
+      dropdowns.to.flag.textContent   = toCurr.flag;
+      dropdowns.to.code.textContent   = toCurr.code;
+
+      runConversion();
+    });
+
+    // Dropdown display buttons — open the panel when clicked
+    dropdowns.from.display.addEventListener("click", () => openDropdown("from"));
+    dropdowns.to.display.addEventListener("click",   () => openDropdown("to"));
+
+    // Dropdown search inputs — filter options as the user types
+    dropdowns.from.search.addEventListener("input", e => renderDropdownOptions("from", e.target.value));
+    dropdowns.to.search.addEventListener("input",   e => renderDropdownOptions("to",   e.target.value));
+
+    // Currency option selection — event delegation on the list container
+    // (we use delegation because the options are dynamically re-rendered)
+    dropdowns.from.list.addEventListener("click", e => {
+      const option = e.target.closest(".dropdown-option");
+      if (option) selectCurrency("from", option.dataset.code);
+    });
+
+    dropdowns.to.list.addEventListener("click", e => {
+      const option = e.target.closest(".dropdown-option");
+      if (option) selectCurrency("to", option.dataset.code);
+    });
+
+    // Close dropdowns when clicking anywhere outside of them
+    document.addEventListener("click", e => {
+      const clickedFromWrapper = dropdowns.from.wrapper.contains(e.target);
+      const clickedToWrapper   = dropdowns.to.wrapper.contains(e.target);
+      if (!clickedFromWrapper) closeDropdown("from");
+      if (!clickedToWrapper)   closeDropdown("to");
+    });
+
+    // Save favourite button — toggle save/remove for the current pair
+    favBtn.addEventListener("click", () => {
+      const key  = `${state.fromCode}_${state.toCode}`;
+      let favs   = loadFavourites();
+      const idx  = favs.indexOf(key);
+
+      if (idx === -1) {
+        favs.push(key); // not saved yet — add it
+      } else {
+        favs.splice(idx, 1); // already saved — remove it
+      }
+
+      saveFavourites(favs);
+      updateFavBtn();
+      renderFavourites();
+    });
+
+    // Favourites list — use event delegation for clicks on chips and remove buttons
+    favouritesList.addEventListener("click", e => {
+      // Check if the remove button (✕) was clicked
+      const removeBtn = e.target.closest("[data-remove]");
+      if (removeBtn) {
+        const pairToRemove = removeBtn.dataset.remove;
+        let favs = loadFavourites();
+        favs = favs.filter(f => f !== pairToRemove); // remove this pair
+        saveFavourites(favs);
+        renderFavourites();
+        updateFavBtn(); // update the button in case the current pair was removed
+        return; // don't also load the pair
+      }
+
+      // Check if the chip itself was clicked (load that pair)
+      const chip = e.target.closest("[data-pair]");
+      if (chip) {
+        const [from, to] = chip.dataset.pair.split("_");
+        state.fromCode = from;
+        state.toCode   = to;
+
+        // Update the dropdown display for both sides
+        dropdowns.from.flag.textContent = CURRENCY_MAP[from].flag;
+        dropdowns.from.code.textContent = from;
+        dropdowns.to.flag.textContent   = CURRENCY_MAP[to].flag;
+        dropdowns.to.code.textContent   = to;
+
+        runConversion();
+      }
+    });
+
+    // History list — use event delegation for the per-item remove buttons
+    historyList.addEventListener("click", e => {
+      const removeBtn = e.target.closest("[data-history-index]");
+      if (!removeBtn) return;
+
+      const index   = parseInt(removeBtn.dataset.historyIndex, 10);
+      const history = loadHistory();
+      history.splice(index, 1); // remove the clicked item by its index
+      saveHistory(history);
+      renderHistory();
+    });
+
+    // Clear all history button
+    clearHistoryBtn.addEventListener("click", () => {
+      saveHistory([]);
+      renderHistory();
+    });
+
+    // =====================================================================
+    // ===== SECTION: INITIALISATION =====
+    // Run everything needed when the page first loads.
+    // =====================================================================
+
+    /**
+     * init — bootstraps the app:
+     *  1. Apply saved theme preference
+     *  2. Render saved favourites and history
+     *  3. Run the initial conversion and chart load
+     */
+    async function init() {
+      // Restore theme preference (defaults to light if nothing saved)
+      const savedTheme = localStorage.getItem("cc_theme");
+      if (savedTheme === "dark") applyTheme(true);
+
+      // Render the sidebar lists from localStorage
+      renderFavourites();
+      renderHistory();
+
+      // Run the initial conversion with default values (1 USD → EUR)
+      await runConversion();
+    }
+
+    // Kick off the app
+    init();
+  </script>
+</body>
+</html>

@@ -33,7 +33,7 @@ No installation needed!
 3. That's it — no server, no setup required
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/CurrencyConverter.git
+git clone https://github.com/USERNAME/CurrencyConverter.git
 cd CurrencyConverter
 # Just open index.html in your browser
 ```
